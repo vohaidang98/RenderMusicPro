@@ -1,0 +1,9 @@
+bin/
+obj/
+Release_v*/
+backups/
+cache-tests/
+*.exe
+*.user
+*.suo
+.vs/
