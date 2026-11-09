@@ -9,7 +9,7 @@ namespace RenderMusicPro.Services;
 /// version.json: {"version":"1.3.0","file":"RenderMusicPro.exe","sha256":"...","notes":"..."}
 /// Chỉ cho tài khoản quản trị quyền GHI vào thư mục chia sẻ; máy khác chỉ cần quyền ĐỌC.
 /// </summary>
-public sealed class LanUpdateService
+public sealed class LanUpdateService : IUpdateService
 {
     public string? LastError { get; private set; }
 
@@ -193,6 +193,7 @@ public sealed record UpdateReleaseInfo(
     string? DownloadUrl,
     string? AssetName,
     long AssetSize,
-    string? AssetSha256);
+    string? AssetSha256,
+    string Source = "LAN");
 
 public sealed record UpdateDownloadProgress(long BytesReceived, long? TotalBytes, bool IsComplete = false);

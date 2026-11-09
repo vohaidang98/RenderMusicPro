@@ -6,7 +6,7 @@ namespace RenderMusicPro.Services;
 
 public sealed class UpdateDownloadDialog : Form
 {
-    private readonly LanUpdateService _service;
+    private readonly IUpdateService _service;
     private readonly UpdateReleaseInfo _release;
     private readonly CancellationTokenSource _cancellation = new();
     private readonly Label _status = new();
@@ -17,7 +17,7 @@ public sealed class UpdateDownloadDialog : Form
     public string? DownloadedPath { get; private set; }
     public Exception? DownloadError { get; private set; }
 
-    public UpdateDownloadDialog(LanUpdateService service, UpdateReleaseInfo release)
+    public UpdateDownloadDialog(IUpdateService service, UpdateReleaseInfo release)
     {
         _service = service;
         _release = release;
@@ -35,7 +35,7 @@ public sealed class UpdateDownloadDialog : Form
 
         var title = new Label
         {
-            Text = $"Đang tải bản v{release.TagName} từ thư mục LAN…",
+            Text = $"Đang tải bản v{release.TagName} từ {(release.Source == "GitHub" ? "GitHub" : "thư mục LAN")}…",
             AutoSize = false,
             Location = new Point(20, 18),
             Size = new Size(430, 24),

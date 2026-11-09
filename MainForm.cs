@@ -78,6 +78,8 @@ public sealed partial class MainForm : Form
     private string? _availableUpdateVersion;
     private string? _availableUpdateUrl;
     private readonly LanUpdateService _updateService = new();
+    // Dự phòng khi không đọc được thư mục LAN (máy không còn trong mạng nội bộ, thư mục chưa cấu hình...).
+    private readonly GitHubUpdateService _githubUpdateService = new();
 
     private CancellationTokenSource? _cts;
     private string? _ffmpegPath;
@@ -626,7 +628,7 @@ public sealed partial class MainForm : Form
 
         try
         {
-            AddLog($"Kiểm tra cập nhật (thư mục LAN)... Phiên bản hiện tại: v{AppVersion.Current}", Cyan);
+            AddLog($"Kiểm tra cập nhật (LAN, dự phòng GitHub)... Phiên bản hiện tại: v{AppVersion.Current}", Cyan);
 
             if (string.IsNullOrWhiteSpace(LanUpdateService.GetFolder()))
             {
@@ -644,35 +646,50 @@ public sealed partial class MainForm : Form
                 LanUpdateService.SetFolder(picker.SelectedPath);
             }
 
+            IUpdateService activeService = _updateService;
             var release = await _updateService.GetLatestReleaseAsync(_lifetimeCts.Token);
 
             if (_lifetimeCts.IsCancellationRequested) return;
 
             if (release == null)
             {
-                string detail = string.IsNullOrWhiteSpace(_updateService.LastError)
+                string lanDetail = string.IsNullOrWhiteSpace(_updateService.LastError)
                     ? "Không có chi tiết lỗi từ máy chủ."
                     : _updateService.LastError!;
-                AddLog("Không đọc được thông tin cập nhật từ thư mục LAN. " + detail, Orange);
+                AddLog("Không đọc được cập nhật từ LAN (" + lanDetail + "); thử qua GitHub...", Orange);
 
-                // Kiểm tra tự động thì không làm phiền người dùng nếu thư mục LAN tạm thời không truy cập được.
-                if (!isAutomatic)
+                release = await _githubUpdateService.GetLatestReleaseAsync(_lifetimeCts.Token);
+                if (_lifetimeCts.IsCancellationRequested) return;
+                activeService = _githubUpdateService;
+
+                if (release == null)
                 {
-                    DialogResult chooseAgain = MessageBox.Show(
-                        this,
-                        "Ứng dụng chưa đọc được thông tin cập nhật.\n\n" +
-                        "Chi tiết: " + detail + "\n\n" +
-                        "Chọn lại thư mục cập nhật?",
-                        "Render Music Pro - Cập nhật",
-                        MessageBoxButtons.YesNo,
-                        MessageBoxIcon.Warning);
+                    string detail = string.IsNullOrWhiteSpace(_githubUpdateService.LastError)
+                        ? lanDetail
+                        : $"LAN: {lanDetail}\nGitHub: {_githubUpdateService.LastError}";
+                    AddLog("Không đọc được thông tin cập nhật (cả LAN lẫn GitHub). " + detail, Orange);
 
-                    if (chooseAgain == DialogResult.Yes)
-                        LanUpdateService.SetFolder("");
+                    // Kiểm tra tự động thì không làm phiền người dùng nếu cả 2 nguồn tạm thời không truy cập được.
+                    if (!isAutomatic)
+                    {
+                        DialogResult chooseAgain = MessageBox.Show(
+                            this,
+                            "Ứng dụng chưa đọc được thông tin cập nhật (đã thử cả LAN lẫn GitHub).\n\n" +
+                            "Chi tiết: " + detail + "\n\n" +
+                            "Chọn lại thư mục cập nhật LAN?",
+                            "Render Music Pro - Cập nhật",
+                            MessageBoxButtons.YesNo,
+                            MessageBoxIcon.Warning);
+
+                        if (chooseAgain == DialogResult.Yes)
+                            LanUpdateService.SetFolder("");
+                    }
+
+                    btnCheckUpdate.Text = "↻  KIỂM TRA CẬP NHẬT";
+                    return;
                 }
 
-                btnCheckUpdate.Text = "↻  KIỂM TRA CẬP NHẬT";
-                return;
+                AddLog($"Đọc được thông tin cập nhật qua GitHub (v{release.Version}).", Cyan);
             }
 
             Version current = Version.Parse(AppVersion.Current);
@@ -738,7 +755,7 @@ public sealed partial class MainForm : Form
                     return;
                 }
 
-                using var downloadDialog = new UpdateDownloadDialog(_updateService, release);
+                using var downloadDialog = new UpdateDownloadDialog(activeService, release);
                 DialogResult downloadResult = downloadDialog.ShowDialog(this);
                 if (downloadResult == DialogResult.OK &&
                     !string.IsNullOrWhiteSpace(downloadDialog.DownloadedPath))
