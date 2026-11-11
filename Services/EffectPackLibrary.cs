@@ -9,6 +9,12 @@ public sealed record EffectPack(string Name, string Folder)
     public string DisplayName => EffectPackLibrary.DisplayName(Name);
 }
 
+/// <summary>Một khung camera = một file PNG trong suốt trong thư mục CameraFrames.</summary>
+public sealed record CameraFrameFile(string Name, string Path)
+{
+    public string DisplayName => EffectPackLibrary.FrameDisplayName(Name);
+}
+
 /// <summary>
 /// Logic thuần cho "bộ hiệu ứng có sẵn": liệt kê các bộ (mỗi thư mục con là một bộ, thả thêm thư mục là tự
 /// hiện), đặt tên hiển thị tiếng Việt, và giải bộ mẫu nhúng trong exe ra đĩa. Không phụ thuộc MainForm.
@@ -94,6 +100,77 @@ public static class EffectPackLibrary
         {
             return false;
         }
+    }
+
+    // =========================================================
+    // KHUNG CAMERA
+    // =========================================================
+    /// <summary>Tiền tố LogicalName của khung camera nhúng.</summary>
+    public const string FrameResourcePrefix = "BuiltInFrames/";
+    public const string FramesFolderName = "CameraFrames";
+
+    private static readonly Dictionary<string, string> KnownFrames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["Frame_01_Minimal_Rec"] = "Tối giản",
+        ["Frame_02_Streamer_Neon"] = "Streamer neon (LIVE)",
+        ["Frame_03_Camcorder_Viewfinder"] = "Máy quay (REC)",
+        ["Frame_04_Luxury_Gold"] = "Sang trọng vàng",
+    };
+
+    /// <summary>"Frame_03_Camcorder_Viewfinder" → "03 · Máy quay (REC)"; "Frame_05_Abc" → "05 · Abc".</summary>
+    public static string FrameDisplayName(string fileNameWithoutExtension)
+    {
+        string name = fileNameWithoutExtension.Trim();
+        string core = name.StartsWith("Frame_", StringComparison.OrdinalIgnoreCase) ? name[6..] : name;
+        if (!KnownFrames.TryGetValue(name, out var known)) return DisplayName(core);
+        int underscore = core.IndexOf('_');
+        return underscore > 0 && core[..underscore].All(char.IsDigit) ? $"{core[..underscore]} · {known}" : known;
+    }
+
+    /// <summary>Liệt kê file PNG khung camera từ các gốc theo thứ tự ưu tiên; trùng tên giữ file ở gốc trước.</summary>
+    public static List<CameraFrameFile> ListCameraFrames(IEnumerable<string> roots)
+    {
+        var frames = new Dictionary<string, CameraFrameFile>(StringComparer.OrdinalIgnoreCase);
+        foreach (string root in roots)
+        {
+            if (string.IsNullOrWhiteSpace(root)) continue;
+            string[] files;
+            try
+            {
+                if (!Directory.Exists(root)) continue;
+                files = Directory.GetFiles(root, "*.png");
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
+            {
+                continue;
+            }
+            foreach (string file in files)
+            {
+                string name = System.IO.Path.GetFileNameWithoutExtension(file);
+                if (name.Length == 0 || frames.ContainsKey(name)) continue;
+                frames[name] = new CameraFrameFile(name, System.IO.Path.GetFullPath(file));
+            }
+        }
+        return frames.Values.OrderBy(f => f.Name, StringComparer.OrdinalIgnoreCase).ToList();
+    }
+
+    /// <summary>Tên hiển thị các mức "vị trí khung" (CameraFramePosition): khoảng cách khung tới mép video.</summary>
+    public static readonly string[] FramePositionNames = { "Sát mép", "Cách mép vừa", "Cách mép xa" };
+    private static readonly double[] FrameInsets = { 0, 0.03, 0.06 };
+
+    /// <summary>
+    /// Khung được co giữ tỉ lệ video và đặt giữa, cách mép theo mức <paramref name="position"/> (0 = sát mép).
+    /// Giá trị lạ kẹp về khoảng hợp lệ. Kích thước/toạ độ luôn chẵn (yuv420p).
+    /// </summary>
+    public static (int X, int Y, int Width, int Height) CameraFrameLayout(int videoWidth, int videoHeight, int position)
+    {
+        if (videoWidth <= 0 || videoHeight <= 0) throw new ArgumentOutOfRangeException(nameof(videoWidth));
+        double inset = FrameInsets[Math.Clamp(position, 0, FrameInsets.Length - 1)];
+        int x = (int)Math.Round(videoWidth * inset), y = (int)Math.Round(videoHeight * inset);
+        x -= x % 2; y -= y % 2;
+        int width = videoWidth - 2 * x, height = videoHeight - 2 * y;
+        width -= width % 2; height -= height % 2;
+        return (x, y, width, height);
     }
 
     /// <summary>Đường dẫn tương đối an toàn: không rỗng, không tuyệt đối, không "..", không ký tự cấm.</summary>

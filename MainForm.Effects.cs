@@ -53,7 +53,11 @@ public sealed partial class MainForm
         string cpuGraph = "[0:v:0]setpts=PTS-STARTPTS[bg];" +
             effectGraph +
             "[bg][fx]overlay=x=(main_w-overlay_w)/2:y=(main_h-overlay_h)/2:shortest=0:eof_action=repeat:repeatlast=1,format=yuv420p[outv]";
-        string common = $"-hide_banner -y -f concat -safe 0 -i {Q(list)} {loop} -i {Q(effect)} -i {Q(music)} " +
+        // Khung camera (nếu bật): input 3 sau nhạc, phủ trên cùng theo kích thước video nền.
+        string frameArgs = CameraFrameInputArgs();
+        if (frameArgs.Length > 0)
+            cpuGraph = ApplyCameraFrame(cpuGraph, 3, _effectCanvasSize ?? await GetEffectVideoSizeAsync(ffmpeg, list, true, token));
+        string common = $"-hide_banner -y -f concat -safe 0 -i {Q(list)} {loop} -i {Q(effect)} -i {Q(music)}{frameArgs} " +
             $"-filter_complex {Q(cpuGraph)} ";
         if (_cudaPipelineAvailable != false && _nvencAvailable != false)
         {
@@ -63,7 +67,7 @@ public sealed partial class MainForm
                 string graph = cpuGraph.Replace("[0:v:0]setpts=PTS-STARTPTS[bg];",
                     $"[0:v:0]hwdownload,format=nv12,crop={canvas.Width}:{canvas.Height}:0:0,setpts=PTS-STARTPTS[bg];",
                     StringComparison.Ordinal);
-                string accelerated = $"-hide_banner -y -hwaccel cuda -hwaccel_output_format cuda -f concat -safe 0 -i {Q(list)} {loop} -i {Q(effect)} -i {Q(music)} " +
+                string accelerated = $"-hide_banner -y -hwaccel cuda -hwaccel_output_format cuda -f concat -safe 0 -i {Q(list)} {loop} -i {Q(effect)} -i {Q(music)}{frameArgs} " +
                     $"-filter_complex {Q(graph)} ";
                 await RunFfmpegAsync(ffmpeg, accelerated + nvenc + end, token, "Giải mã nền CUDA, ghép cache và mã hóa NVENC");
                 _cudaPipelineAvailable = true;

@@ -108,6 +108,42 @@ public sealed class EffectPackLibraryTests : IDisposable
     }
 
     [Theory]
+    [InlineData("Frame_03_Camcorder_Viewfinder", "03 · Máy quay (REC)")]
+    [InlineData("Frame_01_Minimal_Rec", "01 · Tối giản")]
+    [InlineData("Frame_05_Khung_Moi", "05 · Khung Moi")]
+    [InlineData("khung-cua-toi", "khung-cua-toi")]
+    public void FrameDisplayName_FriendlyVietnamese(string file, string expected)
+    {
+        Assert.Equal(expected, EffectPackLibrary.FrameDisplayName(file));
+    }
+
+    [Fact]
+    public void ListCameraFrames_PngOnly_FirstRootWins()
+    {
+        string first = Path.Combine(_root, "a"), second = Path.Combine(_root, "b");
+        Directory.CreateDirectory(first); Directory.CreateDirectory(second);
+        File.WriteAllText(Path.Combine(first, "Frame_03_Camcorder_Viewfinder.png"), "1");
+        File.WriteAllText(Path.Combine(second, "Frame_03_Camcorder_Viewfinder.png"), "2");
+        File.WriteAllText(Path.Combine(second, "Frame_01_Minimal_Rec.png"), "x");
+        File.WriteAllText(Path.Combine(second, "ghi-chu.txt"), "x");
+        var frames = EffectPackLibrary.ListCameraFrames(new[] { first, Path.Combine(_root, "khong-co"), second });
+        Assert.Equal(new[] { "Frame_01_Minimal_Rec", "Frame_03_Camcorder_Viewfinder" }, frames.Select(f => f.Name));
+        Assert.StartsWith(first, frames[1].Path);
+    }
+
+    [Theory]
+    [InlineData(1920, 1080, 0, 0, 0, 1920, 1080)]
+    [InlineData(1920, 1080, 1, 58, 32, 1804, 1016)]
+    [InlineData(1920, 1080, 2, 114, 64, 1692, 952)]
+    [InlineData(1920, 1080, 99, 114, 64, 1692, 952)]
+    [InlineData(1280, 720, -5, 0, 0, 1280, 720)]
+    [InlineData(1279, 719, 0, 0, 0, 1278, 718)]
+    public void CameraFrameLayout_InsetCenteredEven(int w, int h, int pos, int x, int y, int fw, int fh)
+    {
+        Assert.Equal((x, y, fw, fh), EffectPackLibrary.CameraFrameLayout(w, h, pos));
+    }
+
+    [Theory]
     [InlineData("07_PopBallad_Wedding", "07 · Pop Ballad – Đám cưới")]
     [InlineData("00_CoBan_Chung", "00 · Cơ bản – chung")]
     [InlineData("11_Den_Disco", "11 · Den Disco")]

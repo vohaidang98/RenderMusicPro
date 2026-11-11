@@ -27,5 +27,7 @@
          %LocalAppData%\RenderMusicPro\Presets_Effects khi khởi động. Thả thêm thư mục vào đây là thêm bộ. -->
     <EmbeddedResource Include="Assets\Presets_Effects\**\*.*"
                       LogicalName="BuiltInEffects/$([System.String]::Copy('%(RecursiveDir)').Replace('\','/'))%(Filename)%(Extension)" />
+    <!-- Khung camera PNG nhúng trong exe; app giải ra %LocalAppData%\RenderMusicPro\CameraFrames. -->
+    <EmbeddedResource Include="Assets\CameraFrames\*.png" LogicalName="BuiltInFrames/%(Filename)%(Extension)" />
   </ItemGroup>
 </Project>

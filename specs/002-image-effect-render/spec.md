@@ -178,7 +178,5 @@ Người dùng không đổi gì (nguồn nền = Kho video, hiệu ứng = Thư
 
 ## Out of Scope
 
-- **Khung Camera** (khung viewfinder góc vàng, logo, REC + chấm đỏ + pin, chữ 1/500 | F4.0 | ISO 800; nhiều kiểu;
-  bật/tắt): tính năng tiếp theo, spec riêng. Settings người dùng đã có `EnableCameraFrame`/`CameraFramePath`/
-  `CameraFramePosition` (từ bản Full khác), bản Full có `Assets\CameraFrames\Frame_01..04*.png`; repo này chưa có code.
+- **Khung Camera**: đã làm ở tính năng riêng `specs/003-camera-frame` (cùng nhánh).
 - Chia bài LAN cho nền ảnh.

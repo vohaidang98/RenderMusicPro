@@ -302,6 +302,10 @@ public sealed partial class MainForm : Form
         public bool EffectEnabled { get; set; } = true;
         public string EffectPackName { get; set; } = "";
         public string EffectPresetsRoot { get; set; } = "";
+        // Khung camera: giữ đúng tên trường đã có trong settings.json của người dùng.
+        public bool EnableCameraFrame { get; set; }
+        public string CameraFramePath { get; set; } = "";
+        public int CameraFramePosition { get; set; }
     }
 
     private void LoadSettings()
@@ -350,6 +354,7 @@ public sealed partial class MainForm : Form
             chkReuseVideo.Checked = settings.ReuseVideo;
             chkFastStart.Checked = settings.FastStart;
             ApplyImageEffectSettings(settings);
+            ApplyCameraFrameSettings(settings);
         }
     }
 
@@ -378,6 +383,7 @@ public sealed partial class MainForm : Form
                 FastStart = chkFastStart.Checked
             };
             CaptureImageEffectSettings(captured);
+            CaptureCameraFrameSettings(captured);
             return captured;
         }
     }
@@ -495,7 +501,7 @@ public sealed partial class MainForm : Form
         root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
         root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
         root.RowStyles.Add(new RowStyle(SizeType.Absolute, 310));
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 336));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 372)); // +36: hàng Khung camera
         viewport.Controls.Add(root);
         BuildMusicSettings(root);
         BuildCutAndVideoSettings(root);
@@ -1069,10 +1075,11 @@ public sealed partial class MainForm : Form
         cmbEffectBackground.Enabled = chkEffectGreen.Checked && chkEffectGreen.Enabled;
         chkEffectGreen.CheckedChanged += (_, _) => cmbEffectBackground.Enabled = chkEffectGreen.Checked && chkEffectGreen.Enabled;
         chkEffectGreen.EnabledChanged += (_, _) => cmbEffectBackground.Enabled = chkEffectGreen.Checked && chkEffectGreen.Enabled;
-        var effectOptions = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 2,
+        var effectOptions = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 3,
             BackColor = Color.Transparent, Margin = Padding.Empty };
         effectOptions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         effectOptions.RowStyles.Add(new RowStyle(SizeType.Absolute, 34));
+        effectOptions.RowStyles.Add(new RowStyle(SizeType.Absolute, 36));
         effectOptions.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         var backgroundOptions = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = false,
             BackColor = Color.Transparent, Margin = Padding.Empty };
@@ -1082,8 +1089,12 @@ public sealed partial class MainForm : Form
         var cacheOptions = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = false,
             BackColor = Color.Transparent, Margin = Padding.Empty };
         AddCacheControls(cacheOptions);
+        var cameraOptions = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = false,
+            BackColor = Color.Transparent, Margin = Padding.Empty };
+        AddCameraFrameControls(cameraOptions);
         effectOptions.Controls.Add(backgroundOptions, 0, 0);
-        effectOptions.Controls.Add(cacheOptions, 0, 1);
+        effectOptions.Controls.Add(cameraOptions, 0, 1);
+        effectOptions.Controls.Add(cacheOptions, 0, 2);
         videoGrid.Controls.Add(effectOptions, 0, 5);
         videoGrid.SetColumnSpan(effectOptions, 4);
 
@@ -1762,6 +1773,8 @@ public sealed partial class MainForm : Form
             _musicPlaylistSignatures.Clear();
             _effectDeck = CreateEffectDeck();
             _imageDeck = ImageBackgroundSelected ? CreateImageDeck() : null;
+            _runCameraFramePosition = Math.Max(0, cmbCameraFramePosition.SelectedIndex);
+            _runCameraFrame = ResolveCameraFrameForRun();
             _runEffectGreen = chkEffectGreen.Checked;
             _runEffectBackgroundMode = cmbEffectBackground.SelectedIndex;
             _runEffectBlack = _runEffectBackgroundMode == 2;
@@ -1795,6 +1808,7 @@ public sealed partial class MainForm : Form
                 _videoCount = videoFiles.Count;
             }
             LogEffectSourceForRun();
+            LogCameraFrameForRun();
             AddLog($"✓ Chế độ: {ModeName()}.", Cyan);
             AddLog($"✓ Pattern nhạc dùng cho Video: ON {numOnSeconds.Value:N0}s / OFF {numOffSeconds.Value:N0}s.", Cyan);
 
@@ -1824,6 +1838,11 @@ public sealed partial class MainForm : Form
                     AddLog("ℹ Chế độ nền ảnh chưa chia bài LAN; render hết trên máy này.", Cyan);
                 if (LanDistributeEnabled && _imageDeck == null)
                 {
+                    if (_runCameraFrame != null)
+                    {
+                        AddLog("ℹ Khung camera chưa áp dụng khi chia bài LAN; lô này không gắn khung.", Orange);
+                        _runCameraFrame = null;
+                    }
                     await RenderLanBatchAsync(musicDecks, videoFiles, playlistCount, startNumber, playlistName, rng, token);
                 }
                 else
@@ -1979,6 +1998,7 @@ public sealed partial class MainForm : Form
             _runDurationSnapshot = null;
             _effectDeck = null;
             _imageDeck = null;
+            _runCameraFrame = null;
             _cts?.Dispose();
             _cts = null;
             SetRunning(false);
@@ -2478,6 +2498,15 @@ public sealed partial class MainForm : Form
                 _effectCanvasSize = await GetEffectVideoSizeAsync(ffmpeg, videos[0], false, token);
                 await RenderEffectVideoAsync(ffmpeg, listFile, music, audioEncoded, effect, tempOutput,
                     duration, _runEffectGreen, token);
+                File.Move(tempOutput, output, true);
+                return;
+            }
+            if (_runCameraFrame != null)
+            {
+                // Có khung camera thì phải mã hóa lại hình; không dùng stream copy.
+                lblCurrent.Text = "Đang ghép khung camera (ưu tiên GPU)...";
+                var canvas = await GetEffectVideoSizeAsync(ffmpeg, videos[0], false, token);
+                await RenderCameraFrameVideoAsync(ffmpeg, listFile, music, audioEncoded, tempOutput, duration, canvas, token);
                 File.Move(tempOutput, output, true);
                 return;
             }

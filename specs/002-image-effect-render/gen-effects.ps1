@@ -9,7 +9,9 @@ function Hash($a, $b) { "st(0,$a);st(1,$b);$H" }
 $fx = [ordered]@{}
 
 # 1. Film grain: random per-frame speckles + an occasional vertical scratch.
-#    Shipped file was re-encoded lighter: threshold 0.9993, d=4 s, -crf 30 (~0.8 MB).
+#    Shipped film_grain.mp4 is v2 (denser animated grain), made separately:
+#    ffmpeg -f lavfi -i color=c=0x101010:s=960x540:r=24:d=2 -/vf grain2.txt -r 30 -c:v libx264 -preset slow -crf 35 film_grain.mp4
+#    grain2.txt = noise=alls=60:allf=t+u,eq=brightness=-0.06,scale=1920:1080:flags=bicubic,geq=lum='clip(lum(X,Y)+<scratch+dust expr>,0,255)':cb=128:cr=128,format=yuv420p
 $grain = "if(gt(random(1),0.9982),90+random(2)*120,0)+if(lt(abs(X-1920*mod(abs(sin(floor(T*6)*91.7)*4375.85),1)),1.5)*gt(mod(abs(sin(floor(T*6)*13.1)*977.3),1),0.55),70,0)"
 $fx['film_grain'] = "geq=lum='$grain':cb=128:cr=128"
 

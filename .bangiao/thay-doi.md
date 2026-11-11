@@ -14,7 +14,10 @@ Chưa đổi số phiên bản, chưa tạo bộ cài, không đụng CAP_NHAT.
 - Công tắc "Bật hiệu ứng" (cả nền video và ảnh). Tắt = không ghép hiệu ứng.
 - Nền ảnh + chia bài LAN: render hết trên máy này (ghi log), giống Audio có sẵn.
 - Settings/preset: BackgroundSourceMode, ImageSourcePath, EffectEnabled, EffectPackName, EffectPresetsRoot.
-- Kiểm tay: xem `specs\002-image-effect-render\quickstart.md`.
+- Khung camera (specs\003-camera-frame): công tắc + 4 kiểu (Tối giản, Streamer neon, Máy quay REC, Sang trọng vàng) + vị trí cách mép;
+  PNG phủ trên cùng cho nền video/ảnh; trường settings giữ tên cũ EnableCameraFrame/CameraFramePath/CameraFramePosition.
+- film_grain.mp4 của bộ cơ bản làm lại dày hơn (nhiễu động + vết xước + bụi).
+- Kiểm tay: xem `specs\002-image-effect-render\quickstart.md` và `specs\003-camera-frame\spec.md`.
 # Thay đổi 1.5.1 (Coder)
 
 Build: `cd D:\Code\RenderMusicPro; dotnet build -c Release` → 0 cảnh báo, 0 lỗi. Không chạy app, không đụng CAP_NHAT, không tạo bộ cài, không sửa backups.

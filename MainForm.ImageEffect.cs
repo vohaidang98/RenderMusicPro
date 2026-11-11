@@ -173,20 +173,23 @@ public sealed partial class MainForm
             VideoExtensions.Contains(extension, StringComparer.OrdinalIgnoreCase);
     }
 
-    private static int ExtractEmbeddedEffectPacks()
+    private static List<EmbeddedAsset> EmbeddedAssets(string prefix)
     {
         var assembly = typeof(MainForm).Assembly;
-        var assets = assembly.GetManifestResourceNames()
-            .Where(name => name.StartsWith(EffectPackLibrary.ResourcePrefix, StringComparison.Ordinal))
+        return assembly.GetManifestResourceNames()
+            .Where(name => name.StartsWith(prefix, StringComparison.Ordinal))
             .Select(name =>
             {
                 using var probe = assembly.GetManifestResourceStream(name)!;
-                return new EmbeddedAsset(name[EffectPackLibrary.ResourcePrefix.Length..], probe.Length,
+                return new EmbeddedAsset(name[prefix.Length..], probe.Length,
                     () => assembly.GetManifestResourceStream(name)!);
             }).ToList();
-        return EffectPackLibrary.Extract(BuiltInPacksDirectory, assets);
     }
 
+    private static int ExtractEmbeddedEffectPacks() =>
+        EffectPackLibrary.Extract(BuiltInPacksDirectory, EmbeddedAssets(EffectPackLibrary.ResourcePrefix));
+
+    // Gọi khi cửa sổ hiện: giải bộ hiệu ứng cơ bản + khung camera nhúng trong exe rồi quét lại danh sách.
     private async Task InitializeEffectPacksAsync()
     {
         try
@@ -197,7 +200,17 @@ public sealed partial class MainForm
         {
             AppLog.Write("Không giải được bộ hiệu ứng có sẵn: " + ex);
         }
-        if (!IsDisposed) RefreshEffectPacks();
+        try
+        {
+            await Task.Run(ExtractEmbeddedCameraFrames);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
+        {
+            AppLog.Write("Không giải được khung camera có sẵn: " + ex);
+        }
+        if (IsDisposed) return;
+        RefreshEffectPacks();
+        RefreshCameraFrames();
     }
 
     private void RefreshEffectPacks()
@@ -349,6 +362,9 @@ public sealed partial class MainForm
                 "[bg][fx]overlay=x=(main_w-overlay_w)/2:y=(main_h-overlay_h)/2:shortest=0:eof_action=repeat:repeatlast=1,format=yuv420p[outv]";
             audioInput = 2;
         }
+        // Khung camera (nếu bật) là input ngay sau nhạc, phủ trên cùng.
+        graph = ApplyCameraFrame(graph, audioInput + 1, (ImageCanvasWidth, ImageCanvasHeight));
+        inputs += CameraFrameInputArgs();
         string common = $"-hide_banner -y {inputs} -filter_complex {Q(graph)} ";
         string end = $" -map \"[outv]\" -map {audioInput}:a:0 -t {duration} {AudioCodecArgs(audioEncoded)}" +
             $"{FastStartArgs}{Q(output)}";
