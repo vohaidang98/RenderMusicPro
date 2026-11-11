@@ -61,8 +61,8 @@ Danh sách kiểu khung gồm 4 khung có sẵn + mọi file PNG người dùng 
 - **FR-003**: `CameraFramePosition` MUST là mức cách mép 0/1/2 (giá trị lạ kẹp về khoảng hợp lệ).
 - **FR-004**: Khung MUST là lớp trên cùng của video (sau nền + hiệu ứng), không qua bước tách nền, áp cho nền video và nền ảnh.
 - **FR-005**: Mã hóa khi có khung MUST dùng cùng chuỗi dự phòng GPU → CPU hiện có.
-- **FR-006**: 4 khung có sẵn: 01 Tối giản (chỉ góc L trắng + dấu ngắm), 02 Streamer neon (góc neon cyan, huy hiệu TDN, nhãn LIVE),
-  03 Máy quay (góc vàng, huy hiệu TDN, REC + chấm đỏ + pin, 1/500 · F4.0 · ISO 800, 4K · 30P), 04 Sang trọng vàng (viền đôi vàng,
+- **FR-006**: 4 khung có sẵn: 01 Tối giản (chỉ góc L trắng + dấu ngắm), 02 Streamer neon (góc neon cyan, nhãn LIVE),
+  03 Máy quay (góc vàng, REC + chấm đỏ + pin, 1/500 · F4.0 · ISO 800, 4K · 30P), 04 Sang trọng vàng (viền đôi vàng,
   hoa văn kim cương, không chi tiết máy quay).
 - **FR-007**: Khi khung tắt, lệnh ffmpeg của mọi chế độ MUST giữ nguyên như trước (constitution II).
 
@@ -78,7 +78,7 @@ Danh sách kiểu khung gồm 4 khung có sẵn + mọi file PNG người dùng 
   480×270 cũng 16:9), nên "góc" không có nghĩa; chỉ số kiểu khung đã có `CameraFramePath`; còn lại hợp lý nhất là
   khung sát mép hay thụt vào để không bị nền tảng (YouTube/TikTok) che. Nếu người dùng muốn nghĩa khác, chỉ cần đổi
   bảng `FramePositionNames`/`CameraFrameLayout`.
-- Huy hiệu logo dùng chữ "TDN" (thương hiệu TDN Media), chữ thông số là cố định.
+- Không có huy hiệu logo (người dùng yêu cầu bỏ); chữ thông số là cố định.
 - Khung được vẽ bằng System.Drawing (`specs/003-camera-frame/gen-camera-frames.ps1`), không dùng tài nguyên ngoài.
 
 ## Out of Scope

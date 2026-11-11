@@ -82,7 +82,6 @@ Save $bmp $g 'Frame_01_Minimal_Rec.png'
 $bmp, $g = New-Canvas
 $cyan = C 245 0 229 255; $pink = C 245 255 46 136
 Draw-Corners $g $cyan 64 130 6 $true
-Draw-Badge $g 150 150 52 $cyan (C 150 10 12 30) 'TDN' $cyan
 $pill = New-Object System.Drawing.Drawing2D.GraphicsPath
 $px = $W - 300; $py = 118; $pw = 168; $ph = 62; $pr = 31
 $pill.AddArc($px, $py, 2 * $pr, $ph, 90, 180); $pill.AddArc($px + $pw - 2 * $pr, $py, 2 * $pr, $ph, 270, 180); $pill.CloseFigure()
@@ -95,7 +94,6 @@ Save $bmp $g 'Frame_02_Streamer_Neon.png'
 # 03 Máy quay (gần ảnh mẫu): góc vàng, huy hiệu TDN, REC + chấm đỏ + pin, thông số chụp ở dưới.
 $bmp, $g = New-Canvas
 Draw-Corners $g $gold 70 120 6 $false
-Draw-Badge $g 156 156 50 $gold (C 120 0 0 0) 'TDN' $gold
 $g.FillEllipse((New-Object System.Drawing.SolidBrush((C 255 235 40 40))), [float]($W - 350), [float]136, 30, 30)
 Draw-Text $g 'REC' 'Consolas' 44 'Bold' $white ($W - 270) 152 'Center'
 Draw-Battery $g ($W - 205) 135 $white 3
