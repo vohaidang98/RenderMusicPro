@@ -296,6 +296,12 @@ public sealed partial class MainForm : Form
         public bool OpenVideo { get; set; } = true;
         public bool ReuseVideo { get; set; } = false;
         public bool FastStart { get; set; } = false;
+        // v1.6.0: nền ảnh + bộ hiệu ứng có sẵn + công tắc hiệu ứng (thiếu trường = hành vi cũ).
+        public int BackgroundSourceMode { get; set; }
+        public string ImageSourcePath { get; set; } = "";
+        public bool EffectEnabled { get; set; } = true;
+        public string EffectPackName { get; set; } = "";
+        public string EffectPresetsRoot { get; set; } = "";
     }
 
     private void LoadSettings()
@@ -343,13 +349,14 @@ public sealed partial class MainForm : Form
             chkOpenVideo.Checked = settings.OpenVideo;
             chkReuseVideo.Checked = settings.ReuseVideo;
             chkFastStart.Checked = settings.FastStart;
+            ApplyImageEffectSettings(settings);
         }
     }
 
     private AppSettings CaptureSettings()
     {
         {
-            return new AppSettings
+            var captured = new AppSettings
             {
                 SuperMusicPath = txtSuper.Text.Trim(),
                 HayMusicPath = txtHay.Text.Trim(),
@@ -370,6 +377,8 @@ public sealed partial class MainForm : Form
                 ReuseVideo = chkReuseVideo.Checked,
                 FastStart = chkFastStart.Checked
             };
+            CaptureImageEffectSettings(captured);
+            return captured;
         }
     }
 
@@ -442,6 +451,7 @@ public sealed partial class MainForm : Form
         {
             BeginInvoke(() => { if (ActiveControl is TextBoxBase startupText) { startupText.SelectionLength = 0; startupText.SelectionStart = 0; } });
             _ = RefreshCacheSizeAsync();
+            _ = InitializeEffectPacksAsync();
             await CheckLicenseAsync();
             if (!_lifetimeCts.IsCancellationRequested) await CheckForUpdatesAsync(isAutomatic: true);
         };
@@ -1013,23 +1023,25 @@ public sealed partial class MainForm : Form
         videoCard.Controls.Add(videoGrid);
 
         AddSectionTitle(videoGrid, 0, "03   Video & hiệu ứng", 4);
-        AddLabel(videoGrid, 1, 0, "Kho video");
+        AddLabel(videoGrid, 1, 0, "Nguồn nền");
         var videoPathPanel = MakePathInput(
             txtVideoSource,
             "📁",
             BrowseVideoSource);
-        videoGrid.Controls.Add(videoPathPanel, 1, 1);
-        videoGrid.SetColumnSpan(videoPathPanel, 3);
         txtVideoSource.Text = Path.Combine(AppContext.BaseDirectory, "VideoChuanHoa");
         _themedInputs.Add(txtVideoSource);
+        var backgroundRow = BuildBackgroundSourceRow(videoPathPanel);
+        videoGrid.Controls.Add(backgroundRow, 1, 1);
+        videoGrid.SetColumnSpan(backgroundRow, 3);
 
         AddLabel(videoGrid, 2, 0, "Hiệu ứng");
         var effectsPath = MakePathInput(txtEffectSource, "📁", BrowseEffectSource);
         txtEffectSource.PlaceholderText = "Thư mục hiệu ứng (không bắt buộc)";
         txtEffectSource.AccessibleName = "Thư mục hiệu ứng, không bắt buộc";
-        videoGrid.Controls.Add(effectsPath, 1, 2);
-        videoGrid.SetColumnSpan(effectsPath, 3);
         _themedInputs.Add(txtEffectSource);
+        var effectRow = BuildEffectSourceRow(effectsPath);
+        videoGrid.Controls.Add(effectRow, 1, 2);
+        videoGrid.SetColumnSpan(effectRow, 3);
         AddLabel(videoGrid, 3, 0, "Có nhạc (s)");
         videoGrid.Controls.Add(MakeNumeric(numOnSeconds, 1, 3600, 2), 1, 3);
         AddLabel(videoGrid, 3, 2, "Im lặng (s)");
@@ -1044,9 +1056,9 @@ public sealed partial class MainForm : Form
         chkEffectGreen.Text = "Tách nền";
         chkEffectGreen.Checked = true;
         StyleCheck(chkEffectGreen);
-        txtEffectSource.TextChanged += (_, _) =>
-            chkEffectGreen.Enabled = !string.IsNullOrWhiteSpace(txtEffectSource.Text);
-        chkEffectGreen.Enabled = !string.IsNullOrWhiteSpace(txtEffectSource.Text);
+        // Bật/tắt "Tách nền" theo nguồn hiệu ứng + công tắc hiệu ứng (UpdateEffectSourceUi, MainForm.ImageEffect.cs).
+        UpdateEffectSourceUi();
+        UpdateBackgroundSourceUi();
         cmbEffectBackground.Items.AddRange(new object[] { "Tự nhận diện", "Nền xanh", "Nền đen" });
         cmbEffectBackground.SelectedIndex = 0;
         cmbEffectBackground.DropDownStyle = ComboBoxStyle.DropDownList;
@@ -1064,6 +1076,7 @@ public sealed partial class MainForm : Form
         effectOptions.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         var backgroundOptions = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = false,
             BackColor = Color.Transparent, Margin = Padding.Empty };
+        backgroundOptions.Controls.Add(chkEffectEnabled);
         backgroundOptions.Controls.Add(chkEffectGreen);
         backgroundOptions.Controls.Add(cmbEffectBackground);
         var cacheOptions = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = false,
@@ -1748,6 +1761,7 @@ public sealed partial class MainForm : Form
             _videoDeckSource = null;
             _musicPlaylistSignatures.Clear();
             _effectDeck = CreateEffectDeck();
+            _imageDeck = ImageBackgroundSelected ? CreateImageDeck() : null;
             _runEffectGreen = chkEffectGreen.Checked;
             _runEffectBackgroundMode = cmbEffectBackground.SelectedIndex;
             _runEffectBlack = _runEffectBackgroundMode == 2;
@@ -1767,10 +1781,20 @@ public sealed partial class MainForm : Form
             if (string.IsNullOrWhiteSpace(playlistName)) playlistName = "Playlist";
 
             var rng = new Random(Environment.TickCount ^ Guid.NewGuid().GetHashCode());
-            var videoFiles = await Task.Run(() => GetVideoFiles(txtVideoSource.Text.Trim()), token);
-            if (videoFiles.Count == 0) throw new InvalidOperationException("Kho video chuẩn hóa không có video hợp lệ.");
-            AddLog($"✓ Kho video: {videoFiles.Count:N0} video.", Green);
-            _videoCount = videoFiles.Count;
+            var videoFiles = new List<string>();
+            if (_imageDeck != null)
+            {
+                // Nền ảnh: không cần kho video.
+                AddLog($"✓ Kho ảnh: {_imageDeck.Count:N0} ảnh · mỗi video dùng 1 ảnh làm nền.", Green);
+            }
+            else
+            {
+                videoFiles = await Task.Run(() => GetVideoFiles(txtVideoSource.Text.Trim()), token);
+                if (videoFiles.Count == 0) throw new InvalidOperationException("Kho video chuẩn hóa không có video hợp lệ.");
+                AddLog($"✓ Kho video: {videoFiles.Count:N0} video.", Green);
+                _videoCount = videoFiles.Count;
+            }
+            LogEffectSourceForRun();
             AddLog($"✓ Chế độ: {ModeName()}.", Cyan);
             AddLog($"✓ Pattern nhạc dùng cho Video: ON {numOnSeconds.Value:N0}s / OFF {numOffSeconds.Value:N0}s.", Cyan);
 
@@ -1796,7 +1820,9 @@ public sealed partial class MainForm : Form
                 AddLog($"✓ Random {ModeName()} | {playlistCount:N0} playlist.", Cyan);
                 AddLog("✓ Giữ thứ tự nhóm; ưu tiên bài ít dùng, hạn chế lặp với playlist trước.", Cyan);
 
-                if (LanDistributeEnabled)
+                if (LanDistributeEnabled && _imageDeck != null)
+                    AddLog("ℹ Chế độ nền ảnh chưa chia bài LAN; render hết trên máy này.", Cyan);
+                if (LanDistributeEnabled && _imageDeck == null)
                 {
                     await RenderLanBatchAsync(musicDecks, videoFiles, playlistCount, startNumber, playlistName, rng, token);
                 }
@@ -1856,6 +1882,14 @@ public sealed partial class MainForm : Form
                             AddLog($"▶ [{i + 1:N0}/{playlistCount:N0}] {baseName} • ghép video", TextMain);
                             AddLog($"  ✓ Thời lượng nhạc ON/OFF: {FormatDuration(current.Duration)}", Green);
 
+                            if (_imageDeck != null)
+                            {
+                                lblCurrent.Text = $"Playlist {i + 1:N0}/{playlistCount:N0} • ghép ảnh nền + hiệu ứng...";
+                                await RenderImageWithMusicAsync(_ffmpegPath!, current.VideoAudio, true,
+                                    videoPath, current.Duration, pipelineToken);
+                            }
+                            else
+                            {
                             lblCurrent.Text = $"Playlist {i + 1:N0}/{playlistCount:N0} • random video đủ {FormatDuration(current.Duration)}...";
                             var chosenVideos = await BuildVideoSequenceAsync(videoFiles, current.Duration, rng, pipelineToken);
                             AddLog($"  ✓ Đã chọn {chosenVideos.Count:N0} video nguồn.", Green);
@@ -1863,6 +1897,7 @@ public sealed partial class MainForm : Form
                             lblCurrent.Text = $"Playlist {i + 1:N0}/{playlistCount:N0} • ghép video (ưu tiên stream copy)...";
                             await RenderVideoWithMusicAsync(_ffmpegPath!, chosenVideos, current.VideoAudio, true,
                                 videoPath, current.Duration, pipelineToken);
+                            }
                             await Task.Run(() =>
                             {
                                 File.Move(current.MusicFile, musicPath, true);
@@ -1943,6 +1978,7 @@ public sealed partial class MainForm : Form
             SavePersistentMetadataCache();
             _runDurationSnapshot = null;
             _effectDeck = null;
+            _imageDeck = null;
             _cts?.Dispose();
             _cts = null;
             SetRunning(false);
@@ -2086,11 +2122,19 @@ public sealed partial class MainForm : Form
 
                 AddLog($"  ✓ Thời lượng Video: {FormatDuration(duration)}", Green);
 
+                if (_imageDeck != null)
+                {
+                    lblCurrent.Text = $"Audio {i + 1:N0}/{total:N0} • ghép ảnh nền + hiệu ứng...";
+                    await RenderImageWithMusicAsync(_ffmpegPath!, cutPath, false, videoPath, duration, token);
+                }
+                else
+                {
                 lblCurrent.Text = $"Audio {i + 1:N0}/{total:N0} • random video đủ {FormatDuration(duration)}...";
                 var chosenVideos = await BuildVideoSequenceAsync(videoFiles, duration, rng, token);
                 AddLog($"  ✓ Đã chọn {chosenVideos.Count:N0} video chuẩn hóa.", Green);
 
                 await RenderVideoWithMusicAsync(_ffmpegPath!, chosenVideos, cutPath, false, videoPath, duration, token);
+                }
                 await copyMusic;
                 AddLog($"  ✓ Music: {Path.GetFileName(musicPath)}", Green);
                 AddLog($"  ✓ Video: {Path.GetFileName(videoPath)}", Green);
@@ -2120,7 +2164,15 @@ public sealed partial class MainForm : Form
     private bool ValidateSettings(out string error)
     {
         error = "";
-        if (!Directory.Exists(txtVideoSource.Text.Trim()))
+        if (ImageBackgroundSelected)
+        {
+            if (!Directory.Exists(txtImageSource.Text.Trim()))
+            {
+                error = "Kho ảnh không tồn tại. Hãy chọn thư mục chứa ảnh nền (paste đường dẫn hoặc bấm Browse).";
+                return false;
+            }
+        }
+        else if (!Directory.Exists(txtVideoSource.Text.Trim()))
         {
             error = "Kho video chuẩn hóa không tồn tại. Bạn có thể paste đường dẫn hoặc bấm Browse.";
             return false;

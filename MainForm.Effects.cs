@@ -22,7 +22,8 @@ public sealed partial class MainForm
 
     private MusicPoolDeck? CreateEffectDeck()
     {
-        string folder = txtEffectSource.Text.Trim();
+        // Thư mục riêng (như cũ) hoặc thư mục của bộ có sẵn đang chọn; "" khi tắt hiệu ứng.
+        string folder = EffectSourceFolder();
         if (folder.Length == 0) return null;
         if (!Directory.Exists(folder))
             throw new InvalidOperationException("Thư mục hiệu ứng không tồn tại. Xóa đường dẫn nếu không sử dụng hiệu ứng.");
@@ -78,13 +79,26 @@ public sealed partial class MainForm
                 AddLog("  ⚠ Giải mã nền CUDA không phù hợp; vẫn ưu tiên mã hóa NVENC.", Orange);
             }
         }
+        await EncodeOverlayWithFallbackAsync(ffmpeg, common, end, output, token,
+            "Ghép hiệu ứng và mã hóa NVENC",
+            "  ✓ Đã ghép hiệu ứng · mã hóa NVIDIA NVENC · giữ độ phân giải video nền.",
+            "  ⚠ NVENC không sử dụng được cho hiệu ứng này; chuyển sang CPU.",
+            "Ghép hiệu ứng dự phòng CPU",
+            "  ✓ Đã ghép hiệu ứng bằng CPU · giữ độ phân giải video nền.");
+    }
+
+    // Hai tầng cuối dùng chung cho nền video và nền ảnh: NVENC trước, lỗi thì xóa file dở và chạy CPU libx264.
+    // `common` = đầu vào + filter_complex, `end` = map/thời lượng/audio/đầu ra.
+    private async Task EncodeOverlayWithFallbackAsync(string ffmpeg, string common, string end, string output,
+        CancellationToken token, string nvencStep, string nvencDone, string nvencFailed, string cpuStep, string cpuDone)
+    {
         if (_nvencAvailable != false)
         {
             try
             {
-                await RunFfmpegAsync(ffmpeg, common + nvenc + end, token, "Ghép hiệu ứng và mã hóa NVENC");
+                await RunFfmpegAsync(ffmpeg, common + NvencEncodeArgs + end, token, nvencStep);
                 _nvencAvailable = true;
-                AddLog("  ✓ Đã ghép hiệu ứng · mã hóa NVIDIA NVENC · giữ độ phân giải video nền.", Green);
+                AddLog(nvencDone, Green);
                 return;
             }
             catch (InvalidOperationException)
@@ -92,12 +106,12 @@ public sealed partial class MainForm
                 token.ThrowIfCancellationRequested();
                 _nvencAvailable = false;
                 TryDelete(output);
-                AddLog("  ⚠ NVENC không sử dụng được cho hiệu ứng này; chuyển sang CPU.", Orange);
+                AddLog(nvencFailed, Orange);
             }
         }
         await RunFfmpegAsync(ffmpeg, common + $"-c:v libx264 -preset veryfast -crf 20 -profile:v high {BitrateCapArgs}" + end,
-            token, "Ghép hiệu ứng dự phòng CPU");
-        AddLog("  ✓ Đã ghép hiệu ứng bằng CPU · giữ độ phân giải video nền.", Green);
+            token, cpuStep);
+        AddLog(cpuDone, Green);
     }
 
     private async Task<(int Width, int Height)> GetEffectVideoSizeAsync(

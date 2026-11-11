@@ -1,3 +1,20 @@
+# Thay đổi: Chế độ nền Ảnh + Hiệu ứng, Bộ hiệu ứng có sẵn, công tắc hiệu ứng (nhánh 002-image-effect-render)
+
+Spec Kit: `specs\002-image-effect-render\` (spec, plan, research, data-model, contracts, quickstart, tasks).
+Build: `dotnet build -c Release` → 0 lỗi, không thêm cảnh báo (1 cảnh báo cũ CS8600 ở AutoStartService.cs). `dotnet test` đạt hết.
+Chưa đổi số phiên bản, chưa tạo bộ cài, không đụng CAP_NHAT.
+
+- Thẻ 03: hàng "Nguồn nền" (Kho video | Kho ảnh). Nền ảnh: mỗi video 1 ảnh (MusicPoolDeck ít-dùng-trước), ảnh giữ
+  nguyên (không tách nền), giữ tỉ lệ trong 1920×1080, giải mã/scale 1 lần rồi `loop` trong RAM; phủ hiệu ứng bằng
+  đúng đồ thị overlay cũ (GetPreparedEffectAsync + cache tách nền). Mã hóa NVENC → CPU qua hàm dùng chung mới
+  `EncodeOverlayWithFallbackAsync` (tách ra từ RenderEffectVideoAsync, giữ nguyên lệnh/log).
+- Hàng "Hiệu ứng": Thư mục riêng (như cũ) | "Bộ NN · …" = mỗi thư mục con của Presets_Effects (gốc chọn được, mặc định
+  `<app>\Assets\Presets_Effects`), random 1 hiệu ứng trong bộ mỗi video; thả thư mục mới là hiện. Bộ `00_CoBan_Chung`
+  (8 clip mẫu) nhúng trong exe, giải ra `%LocalAppData%\RenderMusicPro\Presets_Effects` (Services\EffectPackLibrary).
+- Công tắc "Bật hiệu ứng" (cả nền video và ảnh). Tắt = không ghép hiệu ứng.
+- Nền ảnh + chia bài LAN: render hết trên máy này (ghi log), giống Audio có sẵn.
+- Settings/preset: BackgroundSourceMode, ImageSourcePath, EffectEnabled, EffectPackName, EffectPresetsRoot.
+- Kiểm tay: xem `specs\002-image-effect-render\quickstart.md`.
 # Thay đổi 1.5.1 (Coder)
 
 Build: `cd D:\Code\RenderMusicPro; dotnet build -c Release` → 0 cảnh báo, 0 lỗi. Không chạy app, không đụng CAP_NHAT, không tạo bộ cài, không sửa backups.
