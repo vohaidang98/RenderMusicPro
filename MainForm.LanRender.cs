@@ -836,7 +836,7 @@ public sealed partial class MainForm
         { ["SIEU-HAY"] = txtSuper, ["HAY"] = txtHay, ["Kho-Nhac"] = txtKhoNhac, ["KHO"] = txtKho };
         ValidateLanPaths(queue,
             musicDecks.Keys.Where(poolBoxes.ContainsKey).Select(k => poolBoxes[k].Text.Trim()),
-            new[] { txtVideoSource.Text.Trim(), _effectDeck != null ? txtEffectSource.Text.Trim() : "" });
+            new[] { txtVideoSource.Text.Trim(), _effectDeck != null ? EffectSourceFolder() : "" });
 
         string musicOutput = txtMusicOutput.Text.Trim();
         string videoOutput = txtVideoOutput.Text.Trim();

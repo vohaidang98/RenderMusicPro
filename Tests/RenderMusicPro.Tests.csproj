@@ -9,6 +9,7 @@
   <ItemGroup>
     <Compile Include="..\Services\LanRenderQueue.cs" Link="Linked\LanRenderQueue.cs" />
     <Compile Include="..\Services\AppVersion.cs" Link="Linked\AppVersion.cs" />
+    <Compile Include="..\Services\EffectPackLibrary.cs" Link="Linked\EffectPackLibrary.cs" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />

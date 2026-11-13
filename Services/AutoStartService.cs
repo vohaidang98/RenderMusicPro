@@ -35,7 +35,7 @@ public static class AutoStartService
 
     private static void Register()
     {
-        string exePath = Environment.ProcessPath;
+        string? exePath = Environment.ProcessPath;
         if (string.IsNullOrWhiteSpace(exePath) || !File.Exists(exePath))
             throw new InvalidOperationException("Không xác định được đường dẫn RenderMusicPro.exe.");
 
