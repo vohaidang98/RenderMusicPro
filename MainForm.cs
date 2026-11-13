@@ -346,8 +346,7 @@ public sealed partial class MainForm : Form
             SetIfNotBlank(txtMusicOutput, settings.MusicOutputPath);
             SetIfNotBlank(txtVideoOutput, settings.VideoOutputPath);
 
-            SetNumericIfValid(numOnSeconds, settings.OnSeconds);
-            SetNumericIfValid(numOffSeconds, settings.OffSeconds);
+            // "Có nhạc"/"Im lặng" cố định 2s/8s (đặt trong InitializeVideoGrid), không đọc từ settings/preset nữa.
 
             chkOpenMusic.Checked = settings.OpenMusic;
             chkOpenVideo.Checked = settings.OpenVideo;
@@ -1023,7 +1022,7 @@ public sealed partial class MainForm : Form
         videoGrid.RowStyles.Add(new RowStyle(SizeType.Absolute, 48));
         videoGrid.RowStyles.Add(new RowStyle(SizeType.Absolute, 48));
         videoGrid.RowStyles.Add(new RowStyle(SizeType.Absolute, 48));
-        videoGrid.RowStyles.Add(new RowStyle(SizeType.Absolute, 48));
+        videoGrid.RowStyles.Add(new RowStyle(SizeType.Absolute, 0));
         videoGrid.RowStyles.Add(new RowStyle(SizeType.Absolute, 30));
         videoGrid.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         videoCard.Controls.Add(videoGrid);
@@ -1048,10 +1047,9 @@ public sealed partial class MainForm : Form
         var effectRow = BuildEffectSourceRow(effectsPath);
         videoGrid.Controls.Add(effectRow, 1, 2);
         videoGrid.SetColumnSpan(effectRow, 3);
-        AddLabel(videoGrid, 3, 0, "Có nhạc (s)");
-        videoGrid.Controls.Add(MakeNumeric(numOnSeconds, 1, 3600, 2), 1, 3);
-        AddLabel(videoGrid, 3, 2, "Im lặng (s)");
-        videoGrid.Controls.Add(MakeNumeric(numOffSeconds, 1, 3600, 8), 3, 3);
+        // Cố định "Có nhạc"/"Im lặng" = 2s/8s, không hiển thị trên giao diện nữa (người dùng yêu cầu bỏ 2 ô này).
+        MakeNumeric(numOnSeconds, 1, 3600, 2);
+        MakeNumeric(numOffSeconds, 1, 3600, 8);
 
         chkReuseVideo.Text = "Tự lặp video khi không đủ clip";
         chkReuseVideo.Checked = true;
