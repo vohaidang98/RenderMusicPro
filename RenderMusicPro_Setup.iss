@@ -1,8 +1,8 @@
 ﻿#define MyAppName "RenderMusicPro"
-#define MyAppVersion "1.5.13"
+#define MyAppVersion "1.5.14"
 #define MyAppPublisher "TDN Media"
 #define MyAppExeName "RenderMusicPro.exe"
-#define MyAppBuildDir "Release_v1.5.13"
+#define MyAppBuildDir "Release_v1.5.14"
 
 [Setup]
 AppName={#MyAppName}
